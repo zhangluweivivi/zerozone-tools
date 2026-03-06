@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroZone Tools - 图像与视频处理工具箱</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --text-color: #1f2937;
+            --bg-color: #f3f4f6;
+            --tab-bg: #ffffff;
+            --tab-active-bg: #eff6ff;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止主页面滚动，只让 iframe 滚动 */
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            background-color: var(--tab-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            height: 60px;
+            justify-content: center;
+            position: relative;
+        }
+
+        .site-title {
+            position: absolute;
+            left: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: var(--text-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .site-title span {
+            color: var(--primary-color);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 8px;
+        }
+
+        .tab-btn {
+            padding: 8px 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover {
+            color: var(--primary-color);
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .tab-btn.active {
+            background-color: white;
+            color: var(--primary-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+
+        /* 内容区域 */
+        .content-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tool-frame {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none; /* 默认隐藏 */
+            background-color: var(--bg-color);
+        }
+
+        .tool-frame.active {
+            display: block;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .site-title {
+                display: none; /* 移动端隐藏标题，节省空间 */
+            }
+            .navbar {
+                justify-content: center;
+                padding: 0 10px;
+            }
+            .tab-btn {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="https://zerozone.online/" class="site-title">
+            ZeroZone<span>Tools</span>
+        </a>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('image')">
+                <span>🖼️</span> 图像处理
+            </button>
+            <button class="tab-btn" onclick="switchTab('video')">
+                <span>🎬</span> 视频压缩
+            </button>
+        </div>
+    </nav>
+
+    <div class="content-container">
+        <!-- 图像处理工具 (默认加载) -->
+        <iframe id="frame-image" class="tool-frame active" src="image-tool/index.html"></iframe>
+        
+        <!-- 视频压缩工具 (懒加载或预加载) -->
+        <iframe id="frame-video" class="tool-frame" src="about:blank"></iframe>
+    </div>
+
+    <script>
+        // 初始化状态
+        let isVideoLoaded = false;
+        const frameImage = document.getElementById('frame-image');
+        const frameVideo = document.getElementById('frame-video');
+
+        function switchTab(type) {
+            // 更新按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // 切换 iframe 显示
+            if (type === 'image') {
+                frameImage.classList.add('active');
+                frameVideo.classList.remove('active');
+            } else {
+                // 首次切换到视频 tab 时才加载，节省流量和内存
+                if (!isVideoLoaded) {
+                    frameVideo.src = "video-compressor/index.html";
+                    isVideoLoaded = true;
+                }
+                frameVideo.classList.add('active');
+                frameImage.classList.remove('active');
+            }
+        }
+        
+        // 解析 URL 参数，允许直接链接到特定 Tab
+        // 例如: index.html?tab=video
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+            if (tab === 'video') {
+                const videoBtn = document.querySelector("button[onclick=\"switchTab('video')\"]");
+                if (videoBtn) videoBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

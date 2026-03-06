@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoPress Pro - 视频批量压缩工具</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入单线程版 ffmpeg.wasm (v0.9.8) - 本地文件加速加载 -->
+    <link rel="preload" as="script" href="vendor/ffmpeg/ffmpeg-core.js">
+    <link rel="preload" as="fetch" href="vendor/ffmpeg/ffmpeg-core.wasm" type="application/wasm" crossorigin>
+    <link rel="preload" as="script" href="vendor/ffmpeg/ffmpeg-core.worker.js">
+    <script src="vendor/ffmpeg/ffmpeg.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>VideoPress Pro</h1>
+            <p>高效、安全、纯本地运行的视频批量压缩工具</p>
+        </header>
+
+        <main>
+            <!-- 1. 压缩参数配置区 -->
+            <section id="config-area" class="card">
+                <div class="section-header">
+                    <h2>⚙️ 压缩参数</h2>
+                    <div class="preset-selector">
+                        <label>预设场景：</label>
+                        <select id="preset-select">
+                            <option value="custom">自定义配置</option>
+                            <option value="h5_rec" selected>H5 推荐 (均衡)</option>
+                            <option value="hd_web">高清 Web (高画质)</option>
+                            <option value="mobile">移动端优化 (小体积)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label>视频编码</label>
+                        <select id="codec-select">
+                            <option value="libx265">H.265 (HEVC) - 推荐</option>
+                            <option value="libx264">H.264 (AVC) - 兼容性好</option>
+                        </select>
+                    </div>
+
+                    <div class="config-item">
+                        <label>分辨率</label>
+                        <select id="resolution-select">
+                            <option value="-1:-1">原始分辨率</option>
+                            <option value="1920:-1">1080p (1920x...)</option>
+                            <option value="1280:-1">720p (1280x...)</option>
+                        </select>
+                    </div>
+
+                    <div class="config-item">
+                        <label>比特率 (Bitrate)</label>
+                        <div class="range-control">
+                            <input type="range" id="bitrate-range" min="500" max="8000" step="100" value="2000">
+                            <span id="bitrate-display">2000 kbps</span>
+                        </div>
+                    </div>
+
+                    <div class="config-item">
+                        <label>帧率 (FPS)</label>
+                        <select id="fps-select">
+                            <option value="25">25 fps (默认)</option>
+                            <option value="30">30 fps</option>
+                            <option value="60">60 fps</option>
+                            <option value="0">原始帧率</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 文件导入区 -->
+            <section id="upload-area" class="card">
+                <div class="drop-zone" id="drop-zone">
+                    <div class="icon">📂</div>
+                    <p>拖拽视频文件夹或文件到这里</p>
+                    <p class="sub-text">支持 MP4, MOV, AVI 等常见格式</p>
+                    <button id="select-btn" class="btn primary">选择文件</button>
+                    <input type="file" id="file-input" multiple accept="video/*" style="display: none;">
+                    <div class="upload-status" id="upload-status" aria-live="polite">等待选择文件</div>
+                    <div class="upload-progress" id="upload-progress" aria-hidden="true">
+                        <div class="upload-progress-bar" id="upload-progress-bar"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 任务处理与预览区 -->
+            <section id="task-area" class="card">
+                <div class="section-header">
+                    <h2>📋 待处理列表 (<span id="file-count">0</span>)</h2>
+                    <div class="actions">
+                        <button id="clear-list-btn" class="btn text">清空列表</button>
+                        <button id="start-btn" class="btn success" disabled>开始批量压缩</button>
+                    </div>
+                </div>
+
+                <div class="task-list-header">
+                    <span>文件名</span>
+                    <span>原始大小</span>
+                    <span>处理后大小</span>
+                    <span>状态/进度</span>
+                    <span>操作</span>
+                </div>
+                <div id="file-list" class="file-list">
+                    <!-- 动态生成列表项 -->
+                    <div class="empty-state">暂无文件，请先添加视频</div>
+                </div>
+                
+                <div class="summary-bar" id="summary-bar" style="display: none;">
+                    总计节省空间: <span id="total-saved">0 MB</span>
+                </div>
+            </section>
+        </main>
+        
+        <!-- 对比预览弹窗 -->
+        <div id="preview-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h3>效果对比预览</h3>
+                <div class="preview-layout">
+                    <div class="preview-column">
+                        <div class="preview-column-header">
+                            <h4>Android 主流机型</h4>
+                            <div class="preview-controls">
+                                <label for="preview-device-select-android">预览机型：</label>
+                                <select id="preview-device-select-android" class="preview-device-select">
+                                    <option value="auto" selected>自适应 (原始比例)</option>
+                                    <option value="1080x2400">Pixel 7 / Xiaomi 13 (1080x2400)</option>
+                                    <option value="1344x2992">Pixel 8 Pro (1344x2992)</option>
+                                    <option value="1080x2340">Galaxy S23 (1080x2340)</option>
+                                    <option value="1440x3088">Galaxy S23 Ultra (1440x3088)</option>
+                                    <option value="1080x2460">OnePlus 11 (1080x2460)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="video-compare-container" data-platform="android">
+                            <div class="video-box">
+                                <div class="label">原始视频</div>
+                                <video class="video-original" controls muted playsinline></video>
+                                <div class="meta meta-original">-- MB</div>
+                            </div>
+                            <div class="video-box">
+                                <div class="label">压缩后</div>
+                                <video class="video-compressed" controls muted playsinline></video>
+                                <div class="meta meta-compressed">-- MB (-%)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="preview-column">
+                        <div class="preview-column-header">
+                            <h4>iOS 主流机型</h4>
+                            <div class="preview-controls">
+                                <label for="preview-device-select-ios">预览机型：</label>
+                                <select id="preview-device-select-ios" class="preview-device-select">
+                                    <option value="auto" selected>自适应 (原始比例)</option>
+                                    <option value="1179x2556">iPhone 15 Pro (1179x2556)</option>
+                                    <option value="1170x2532">iPhone 13/14 (1170x2532)</option>
+                                    <option value="1284x2778">iPhone 13 Pro Max (1284x2778)</option>
+                                    <option value="1080x2340">iPhone 12 mini (1080x2340)</option>
+                                    <option value="750x1334">iPhone SE 2022 (750x1334)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="video-compare-container" data-platform="ios">
+                            <div class="video-box">
+                                <div class="label">原始视频</div>
+                                <video class="video-original" controls muted playsinline></video>
+                                <div class="meta meta-original">-- MB</div>
+                            </div>
+                            <div class="video-box">
+                                <div class="label">压缩后</div>
+                                <video class="video-compressed" controls muted playsinline></video>
+                                <div class="meta meta-compressed">-- MB (-%)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn primary" id="sync-play-btn">同步播放/暂停</button>
+                    <a id="download-link" class="btn success" style="display:none">保存视频</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
